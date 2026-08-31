@@ -28,5 +28,8 @@ classifiers = [
 keywords = ["aead", "compression", "encryption", "zstandard"]
 dependencies = ["cryptography>=42", "zstandard>=0.22"]
 
+[project.scripts]
+kransx = "kransx.cli:main"
+
 [tool.setuptools.packages.find]
 include = ["kransx"]

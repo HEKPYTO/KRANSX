@@ -6,3 +6,5 @@ newer.
 ```bash
 python -m pip install kransx
 ```
+
+The `kransx` command creates keys and seals or opens files without overwriting output.
