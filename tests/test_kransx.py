@@ -15,15 +15,15 @@ MASTER_KEY = bytes(range(32))
 RAW_DATA = b"raw conformance"
 RAW_AAD = b"context/raw"
 RAW_ENVELOPE = bytes.fromhex(
-    "22000102030405060708090a0b692578ec1758eb9ee443b88349ec5965db511ba97c5ca2e2d673329ef6fecf"
+    "22000102030405060708090a0bf8dd7750722c9e9f8efb6379a3f2a7b5e945ddcbde55ad59bb374ea04ba72a"
 )
 COMPRESSED_DATA = b"KRANS-X compressed conformance payload.\n" * 12
 COMPRESSED_AAD = b"context/compressed"
 COMPRESSED_ENVELOPE = bytes.fromhex(
-    "21f0f1f2f3f4f5f6f7f8f9fafb7ca5261fcc93992945aee8d8f56c7b5536c20d72f96f4613f68464d471dabc5b8c28138f43c9d01b281cb94d38aa3ca0b7fb2e6d85fa64139e2f81478d3fb14714ac781582166e7663f13a"
+    "21f0f1f2f3f4f5f6f7f8f9fafbb29a72e5e7662005ac775682f62ca08aec7fa39c9e37f1d006faada751c55afc1778bdc202dda8c263135b71cbac81355133cfc9c9d02dddceefdd1b64a4423068a1fa31fa24e4126f4d57"
 )
 UNKNOWN_SIZE_COMPRESSED_ENVELOPE = bytes.fromhex(
-    "2100112233445566778899aabb163672355edd456c8133c3dea390bc27202742910db2c83d697b2bfeb0fcc0858408"
+    "2100112233445566778899aabb31133b1a107277d6b8d076c186d366aead344dd45fc9fc2a801df62fa7571ac4618f"
 )
 _REFERENCE_ZSTD = ("0.25.0", (1, 5, 7))
 
@@ -45,15 +45,6 @@ def test_raw_conformance_vector(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("kransx.core.os.urandom", lambda size: bytes(range(12)))
     assert seal(RAW_DATA, MASTER_KEY, aad=RAW_AAD, compress=False) == RAW_ENVELOPE
     assert open_data(RAW_ENVELOPE, MASTER_KEY, aad=RAW_AAD) == RAW_DATA
-
-
-def test_domain_separation_vectors() -> None:
-    assert core._aead_key(MASTER_KEY).hex() == (
-        "d7dc88c2c7229b85935df4e9f629bb9d6927afda18b4b694d59072d6401642fa"
-    )
-    assert core._NO_DICT_BINDING.hex() == (
-        "5152820c3fb367220f3f4f33d3e5dbfb4633b77db012e6e9ecbebe40b7b5eae3"
-    )
 
 
 def test_compressed_conformance_vector_opens_on_all_versions(

@@ -1,82 +1,129 @@
 # KRANSX
 
-[![CI](https://forge.int.tsunyanapat.com/tsun/KRANSX/actions/workflows/ci.yml/badge.svg)](https://forge.int.tsunyanapat.com/tsun/KRANSX/actions)
+[![CI](https://forge.int.tsunyanapat.com/tsun/KRANSX/actions/workflows/ci.yml/badge.svg)](https://forge.int.tsunyanapat.com/tsun/KRANSX)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://forge.int.tsunyanapat.com/tsun/KRANSX/src/branch/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-KRANSX turns bytes into a compact, authenticated envelope. It uses Zstandard
-when compression makes the payload smaller, stores raw bytes otherwise, and
-protects either form with AES-256-GCM-SIV.
+Authenticated encryption with adaptive compression for Python.
 
-## Install
+KRANSX seals arbitrary bytes into a compact, authenticated envelope. It applies Zstandard compression only when it reduces size, otherwise stores the payload as-is, and protects both with AES-256-GCM-SIV. The result is a single self-contained binary with 29 bytes of overhead.
+
+## Features
+
+- Adaptive compression — Zstandard when beneficial, raw otherwise
+- Authenticated encryption — AES-256-GCM-SIV (nonce-misuse resistant)
+- Small fixed overhead — 29 bytes (`suite` + `nonce` + `tag`)
+- Simple API — `seal` / `open_data`, fully typed
+- Dictionary support — optional Zstandard dictionaries for structured data
+- CLI — `keygen`, `seal`, `open`, `train`
+- No background services or async dependencies
+
+## Installation
 
 ```bash
-python -m pip install kransx
+pip install kransx
 ```
 
-## Python
+For development:
+
+```bash
+uv sync --locked --extra dev
+```
+
+Requires Python 3.10+, `cryptography >= 42`, `zstandard >= 0.22`.
+
+## Usage
+
+### Python API
 
 ```python
 import secrets
-
 from kransx import open_data, seal
 
-key = secrets.token_bytes(32)
-message = b"hello from KRANSX"
-aad = b"example"
-envelope = seal(message, key, aad=aad)
-assert open_data(envelope, key, aad=aad) == message
+key = secrets.token_bytes(32)  # 32 uniformly random bytes
+aad = b"record-42"              # associated data, authenticated but not encrypted
+
+sealed = seal(b"hello world", key, aad=aad)
+assert open_data(sealed, key, aad=aad) == b"hello world"
 ```
 
-`aad` is authenticated but not encrypted; supply the same bytes to both calls.
+Authentication failures raise `cryptography.exceptions.InvalidTag` (wrong key, AAD, dictionary, or modified bytes). Structural errors raise `ValueError`.
 
-## CLI
+With a shared dictionary (non-secret, improves compression on similar payloads):
+
+```python
+from kransx import train_dict
+
+dictionary = train_dict([b'{"user":1,"action":"login"}'] * 300)
+sealed = seal(b'{"user":1,"action":"login"}', key, dict_obj=dictionary)
+assert open_data(sealed, key, dict_obj=dictionary) == b'{"user":1,"action":"login"}'
+```
+
+API reference:
+
+```python
+seal(data: bytes, key: bytes, *, dict_obj=None, aad=b"", compress=True, level=3) -> bytes
+open_data(blob: bytes, key: bytes, *, dict_obj=None, aad=b"", max_output_size=64*1024*1024) -> bytes
+train_dict(samples: Iterable[bytes], dict_size=16384) -> ZstdCompressionDict
+save_dict(dictionary, path) / load_dict(path)
+```
+
+`compress=True` retains the Zstandard frame only when strictly smaller than the input. `max_output_size` limits the decompressed output size.
+
+### CLI
 
 ```bash
 kransx keygen key.bin
-kransx seal message.txt message.krx --key-file key.bin
-kransx open message.krx restored.txt --key-file key.bin
+kransx seal plain.bin sealed.bin --key-file key.bin --aad 7265636f72642d3432
+kransx open sealed.bin restored.bin --key-file key.bin --aad 7265636f72642d3432
+
+kransx train 'samples/*.json' --output model.dict
+kransx seal plain.bin out.bin --key-file key.bin --dict model.dict
+kransx open out.bin restored.bin --key-file key.bin --dict model.dict --max-output-size 1048576
 ```
 
-Outputs are created exclusively and are never overwritten. Use `--aad` for
-hexadecimal associated data, `--no-compress` for raw storage, and
-`--max-output-size` to cap opened plaintext.
+- `--aad` accepts hex-encoded bytes
+- `--max-output-size` caps plaintext size on open
+- Output files are created exclusively and never overwritten
 
-## Construction and security
+## Design
 
-The envelope is `suite || nonce || ciphertext || tag`: suite `0x21` stores a
-smaller Zstandard frame and `0x22` stores raw bytes. A fresh 12-byte nonce,
-suite, AAD, and compressed-suite dictionary binding are authenticated.
+Envelope layout: `suite (1) | nonce (12) | ciphertext | tag (16)`
 
-- Use protected, uniformly random 32-byte keys; passwords are not keys.
-- Do not compress secrets mixed with attacker-controlled bytes.
-- Bound untrusted encrypted input before opening it; `max_output_size` bounds
-  recovered plaintext only.
-- Rate-limit failed opens, count seals per key, and rotate keys to an applicable
-  AES-GCM-SIV usage profile.
+| Suite | Payload | Authenticated associated data |
+|-------|---------|-------------------------------|
+| `0x21` | Zstandard frame | `suite` + dictionary binding + `aad` |
+| `0x22` | raw bytes | `suite` + `aad` |
 
-Key distribution, storage, rotation, input streaming, and rate limiting remain
-application responsibilities.
+- The dictionary binding is `SHA-256` over the dictionary bytes (or a constant for no dictionary), ensuring a mismatched dictionary fails authentication before decompression.
+- Keys are 32 random bytes expanded via HKDF-SHA256 to the AEAD key. A fresh 12-byte nonce is generated per seal.
+- Opening validates the envelope before decryption: size and suite checks, then AEAD authentication, then — for compressed payloads — single-frame Zstandard validation and bounded decompression.
 
-## API
+## Security considerations
 
-`seal(data, key, *, dict_obj=None, aad=b"", compress=True, level=3)` creates an
-envelope.
+This library implements the envelope only. Key generation, distribution, storage, rotation, and encrypted-input size bounding are the caller's responsibility.
 
-```python
-open_data(blob, key, *, dict_obj=None, aad=b"", max_output_size=64 * 1024 * 1024)
-```
-
-authenticates and opens one. `train_dict`, `save_dict`, and `load_dict` manage
-optional Zstandard dictionaries; dictionary bytes are non-secret but must match
-when opening compressed data.
+- **Keys** must be 32 uniformly random bytes. Passwords are not valid keys.
+- **Nonces** are generated with `os.urandom(12)` per seal. AES-GCM-SIV is nonce-misuse resistant, but reuse should still be avoided.
+- **Compression oracles** — the sealed size reveals whether compression was used. Do not compress data that mixes secrets with attacker-controlled input without application-level separation. Use `compress=False` when this is a concern.
+- **Resource limits** — `max_output_size` bounds decompressed output. For untrusted inputs, also bound the encrypted input size before calling `open_data`.
 
 ## Development
 
 ```bash
 uv sync --locked --extra dev
-uv run pre-commit run --all-files
+uv run ruff check .
+uv run mypy kransx
 uv run pytest -q
-uv build --no-sources
-uv publish --dry-run --trusted-publishing never dist/*
 ```
+
+Pre-commit hooks are configured for `ruff` and `mypy` (see `.pre-commit-config.yaml`).
+
+```
+kransx/  seal, open_data, dicts, cli
+tests/   conformance vectors, tamper checks, resource limits
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE).

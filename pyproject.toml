@@ -9,7 +9,6 @@ description = "KRANSX authenticated encryption-envelope reference implementation
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-license-files = ["LICENSE"]
 authors = [{name = "KRANSX contributors"}]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -33,10 +32,6 @@ dev = ["mypy>=1.10", "pre-commit>=4", "pytest>=7", "ruff>=0.4"]
 
 [project.scripts]
 kransx = "kransx.cli:main"
-
-[project.urls]
-Issues = "https://forge.int.tsunyanapat.com/tsun/KRANSX/issues"
-Source = "https://forge.int.tsunyanapat.com/tsun/KRANSX"
 
 [tool.setuptools.packages.find]
 include = ["kransx"]

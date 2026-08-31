@@ -1,4 +1,4 @@
-"""Compress-then-encrypt envelope."""
+"""Version 0.1 compress-then-encrypt envelope."""
 
 import hashlib
 import os
@@ -13,7 +13,7 @@ _TAG_SIZE = 16
 _FIXED_OVERHEAD = 1 + _NONCE_SIZE + _TAG_SIZE
 _SUITES = {0x21: True, 0x22: False}
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
-_DICT_BINDING_PREFIX = b"kransx/v1/zstd-dictionary/"
+_DICT_BINDING_PREFIX = b"kransx/v0.1/zstd-dictionary/"
 _NO_DICT_BINDING = hashlib.sha256(_DICT_BINDING_PREFIX + b"none").digest()
 
 
@@ -35,7 +35,7 @@ def _aead_key(key: bytes) -> bytes:
         hashes.SHA256(),
         32,
         None,
-        b"kransx/v1/aead/aes-256-gcm-siv",
+        b"kransx/v0.1/aead/aes-256-gcm-siv",
     ).derive(key)
 
 
@@ -71,7 +71,7 @@ def seal(
     compress: bool = True,
     level: int = 3,
 ) -> bytes:
-    """Compress *data* when smaller, then encrypt it in an envelope."""
+    """Compress *data* when smaller, then encrypt it in a envelope."""
     data = _require_bytes("data", data)
     key = _validate_key(key)
     aad = _require_bytes("aad", aad)
@@ -105,7 +105,7 @@ def open_data(
     aad: bytes = b"",
     max_output_size: int = 64 * 1024 * 1024,
 ) -> bytes:
-    """Authenticate and open an envelope, enforcing an output limit."""
+    """Authenticate and open a envelope, enforcing an output limit."""
     blob = _require_bytes("blob", blob)
     key = _validate_key(key)
     aad = _require_bytes("aad", aad)
