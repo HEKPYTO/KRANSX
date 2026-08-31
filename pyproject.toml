@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kransx"
+version = "0.1.0"
+description = "KRANSX authenticated encryption-envelope reference implementation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "KRANSX contributors"}]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Security :: Cryptography",
+  "Topic :: System :: Archiving :: Compression",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Operating System :: OS Independent",
+  "Typing :: Typed",
+]
+keywords = ["aead", "compression", "encryption", "zstandard"]
+dependencies = ["cryptography>=42", "zstandard>=0.22"]
+
+[tool.setuptools.packages.find]
+include = ["kransx"]

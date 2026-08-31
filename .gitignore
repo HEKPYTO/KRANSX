@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+build/
+.DS_Store
+*.bin
+.KRANSX-dict
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
