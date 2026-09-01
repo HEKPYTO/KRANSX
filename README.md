@@ -5,7 +5,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Authenticated encryption with adaptive compression for Python.
+Authenticated encryption with adaptive compression.
 
 KRANSX seals arbitrary bytes into a compact, authenticated envelope. It applies Zstandard compression only when it reduces size, otherwise stores the payload as-is, and protects both with AES-256-GCM-SIV. The result is a single self-contained binary with 29 bytes of overhead.
 
