@@ -42,12 +42,12 @@ Each line below is decided by a checked-in command that exits non-zero when brok
 
 ## Python API
 
-```python
-seal(data: bytes, key: bytes, *, dict_obj=None, aad=b"", compress=True, level=3) -> bytes
-open_data(blob: bytes, key: bytes, *, dict_obj=None, aad=b"", max_output_size=64*1024*1024) -> bytes
-train_dict(samples: Iterable[bytes], dict_size=16384) -> ZstdCompressionDict
-save_dict(dictionary, path) / load_dict(path)
-```
+| Function | Signature |
+|---|---|
+| `seal` | `seal(data: bytes, key: bytes, *, dict_obj=None, aad=b"", compress=True, level=3) -> bytes` |
+| `open_data` | `open_data(blob: bytes, key: bytes, *, dict_obj=None, aad=b"", max_output_size=64*1024*1024) -> bytes` |
+| `train_dict` | `train_dict(samples: Iterable[bytes], dict_size=16384) -> ZstdCompressionDict` |
+| `save_dict` / `load_dict` | `save_dict(dictionary, path)` / `load_dict(path)` |
 
 `compress=True` runs the tournament and keeps the strictly smallest payload. Raw wins every tie, so incompressible input grows by exactly the 29-byte floor and nothing more. `max_output_size` caps decompressed output. Structural problems raise `ValueError`. Authentication problems raise `InvalidTag` and release no plaintext.
 
@@ -93,7 +93,7 @@ Envelope layout: `suite (1) | nonce (12) | ciphertext | tag (16)`.
 
 The dictionary binding is `SHA-256` over the dictionary bytes, or over a fixed constant when no dictionary is used. Keys are 32 random bytes expanded through HKDF-SHA-256 to the AEAD key. Every seal generates a fresh 12-byte nonce. Opening checks size and suite first, authenticates second, and only then decompresses under the output cap: single Zstandard frame or a bounded LZMA stream, trailing bytes rejected either way.
 
-## Security considerations
+## Security
 
 This library is the envelope only. Key generation, distribution, storage, rotation, and bounding encrypted-input size stay with the caller.
 
