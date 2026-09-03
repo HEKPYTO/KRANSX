@@ -3,16 +3,14 @@
 import argparse
 import glob
 import os
-import platform
-import zlib
+import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
-import cryptography
 import zstandard as zstd
 from cryptography.exceptions import InvalidTag
 
-from . import __version__
 from .core import open_data, seal
 from .dicts import load_dict, train_dict
 
@@ -86,27 +84,14 @@ def _keygen(args: argparse.Namespace) -> None:
 
 
 def _bench(_: argparse.Namespace) -> None:
-    key = bytes(range(32))
-    corpora = (
-        ("repeated-text", b"The quick brown fox jumps over the lazy dog.\n" * 1_000),
-        ("structured-json", b'{"event":"login","actor":"alice","ok":true}\n' * 1_000),
-        ("small-raw", bytes(range(32))),
-    )
-    print("KRANSX deterministic size benchmark (generated corpora; not a speed or SOTA claim)")
-    print(
-        f"kransx={__version__} python={platform.python_version()} "
-        f"cryptography={cryptography.__version__} zstandard={zstd.__version__}"
-    )
-    print(f"{'corpus':16} {'raw':>8} {'zlib':>8} {'zstd':>8} {'envelope':>10} {'stored':>10}")
-    for name, data in corpora:
-        compressed = zstd.ZstdCompressor(level=3).compress(data)
-        envelope = seal(data, key)
-        stored = "zstd" if envelope[0] == 0x21 else "raw"
-        print(
-            f"{name:16} {len(data):8} {len(zlib.compress(data)):8} {len(compressed):8} "
-            f"{len(envelope):10} {stored:>10}"
-        )
-    print("Envelope overhead is 29 bytes: suite (1), nonce (12), and AEAD tag (16).")
+    root = Path(__file__).resolve().parent.parent
+    for script in ("bench/bench_a.py", "bench/bench_b.py"):
+        target = root / script
+        if not target.is_file():
+            raise OSError(f"{script} ships with the repo checkout, not the wheel")
+        proc = subprocess.run([sys.executable, str(target)], check=False)
+        if proc.returncode != 0:
+            raise SystemExit(proc.returncode)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -137,9 +122,7 @@ def _parser() -> argparse.ArgumentParser:
     keygen_parser = commands.add_parser("keygen", help="create a new raw 32-byte key file")
     keygen_parser.add_argument("key_file")
     keygen_parser.set_defaults(handler=_keygen)
-    bench_parser = commands.add_parser(
-        "bench", help="run deterministic generated-corpus size measurements"
-    )
+    bench_parser = commands.add_parser("bench", help="run the A+B claim gates")
     bench_parser.set_defaults(handler=_bench)
     return parser
 

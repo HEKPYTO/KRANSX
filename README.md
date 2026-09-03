@@ -1,22 +1,21 @@
 # KRANSX
 
-[![CI](https://github.com/HEKPYTO/KRANSX/actions/workflows/ci.yml/badge.svg)](https://github.com/HEKPYTO/KRANSX/actions)
 [![PyPI](https://img.shields.io/pypi/v/kransx.svg)](https://pypi.org/project/kransx/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 Authenticated encryption with adaptive compression.
 
-KRANSX seals arbitrary bytes into a compact, authenticated envelope. It applies Zstandard compression only when it reduces size, otherwise stores the payload as-is, and protects both with AES-256-GCM-SIV. The result is a single self-contained binary with 29 bytes of overhead.
+KRANSX seals arbitrary bytes into a compact, authenticated envelope. It tries Zstandard (at your level and 19) and LZMA-6, keeps the strictly smallest result or stores the payload as-is, and protects the winner with AES-256-GCM-SIV. The result is a single self-contained binary with 29 bytes of overhead.
 
 ## Features
 
-- Adaptive compression — Zstandard when beneficial, raw otherwise
+- Adaptive compression — codec tournament (Zstandard at level and 19, LZMA-6) when beneficial, raw otherwise
 - Authenticated encryption — AES-256-GCM-SIV (nonce-misuse resistant)
 - Small fixed overhead — 29 bytes (`suite` + `nonce` + `tag`)
 - Simple API — `seal` / `open_data`, fully typed
 - Dictionary support — optional Zstandard dictionaries for structured data
-- CLI — `keygen`, `seal`, `open`, `train`
+- CLI — `keygen`, `seal`, `open`, `train`, `bench`
 - No background services or async dependencies
 
 ## Installation
@@ -69,7 +68,7 @@ train_dict(samples: Iterable[bytes], dict_size=16384) -> ZstdCompressionDict
 save_dict(dictionary, path) / load_dict(path)
 ```
 
-`compress=True` retains the Zstandard frame only when strictly smaller than the input. `max_output_size` limits the decompressed output size.
+`compress=True` runs the codec tournament and keeps the strictly smallest payload; raw wins all ties. `max_output_size` limits the decompressed output size.
 
 ### CLI
 
@@ -81,8 +80,10 @@ kransx open sealed.bin restored.bin --key-file key.bin --aad 7265636f72642d3432
 kransx train 'samples/*.json' --output model.dict
 kransx seal plain.bin out.bin --key-file key.bin --dict model.dict
 kransx open out.bin restored.bin --key-file key.bin --dict model.dict --max-output-size 1048576
+kransx bench
 ```
 
+- `bench` runs the A+B claim gates (tournament bound, overhead floor); exit non-zero on failure
 - `--aad` accepts hex-encoded bytes
 - `--max-output-size` caps plaintext size on open
 - Output files are created exclusively and never overwritten
@@ -95,6 +96,7 @@ Envelope layout: `suite (1) | nonce (12) | ciphertext | tag (16)`
 |-------|---------|-------------------------------|
 | `0x21` | Zstandard frame | `suite` + dictionary binding + `aad` |
 | `0x22` | raw bytes | `suite` + `aad` |
+| `0x23` | LZMA bytes (preset 6) | `suite` + no-dictionary binding + `aad` |
 
 - The dictionary binding is `SHA-256` over the dictionary bytes (or a constant for no dictionary), ensuring a mismatched dictionary fails authentication before decompression.
 - Keys are 32 random bytes expanded via HKDF-SHA256 to the AEAD key. A fresh 12-byte nonce is generated per seal.

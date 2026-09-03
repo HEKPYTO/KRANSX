@@ -1,0 +1,23 @@
+size	raw_len	env_len	overhead	suite	seal_ms	open_ms
+0	0	29	29	0x22	0.212	0.011
+1	1	30	29	0x22	0.195	0.011
+16	16	45	29	0x22	0.182	0.010
+100	100	129	29	0x22	0.191	0.010
+1024	1024	1053	29	0x22	0.272	0.014
+10240	10240	10269	29	0x22	1.224	0.046
+102400	102400	102429	29	0x22	12.982	0.372
+1048576	1048576	1048605	29	0x22	153.662	3.689
+zeros_10K	suite=0x21	env=47
+tamper	pos	result
+tamper	suite@0	ValueError
+tamper	nonce@5	InvalidTag
+tamper	ct@20	InvalidTag
+tamper	tag@45	InvalidTag
+case	result
+wrong_key	InvalidTag
+wrong_aad	InvalidTag
+trunc_28	ValueError
+trunc_29	InvalidTag
+bad_suite	ValueError
+raw_over_cap	ValueError
+wrong_dict	InvalidTag

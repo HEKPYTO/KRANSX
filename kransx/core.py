@@ -1,6 +1,7 @@
-"""Version 0.1 compress-then-encrypt envelope."""
+"""Version 0.2 compress-then-encrypt envelope with codec tournament."""
 
 import hashlib
+import lzma
 import os
 
 import zstandard as zstd
@@ -11,7 +12,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 _NONCE_SIZE = 12
 _TAG_SIZE = 16
 _FIXED_OVERHEAD = 1 + _NONCE_SIZE + _TAG_SIZE
-_SUITES = {0x21: True, 0x22: False}
+_SUITES = {0x21: "zstd", 0x22: None, 0x23: "lzma"}
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 _DICT_BINDING_PREFIX = b"kransx/v0.1/zstd-dictionary/"
 _NO_DICT_BINDING = hashlib.sha256(_DICT_BINDING_PREFIX + b"none").digest()
@@ -62,6 +63,29 @@ def _decompress(payload: bytes, dict_obj: zstd.ZstdCompressionDict | None, limit
         raise ValueError("invalid or oversized Zstandard payload") from error
 
 
+def _decompress_lzma(payload: bytes, limit: int) -> bytes:
+    decoder = lzma.LZMADecompressor()
+    out = bytearray()
+    pos = 0
+    try:
+        while not decoder.eof:
+            if decoder.needs_input:
+                if pos >= len(payload):
+                    raise ValueError("truncated LZMA payload")
+                feed = payload[pos : min(len(payload), pos + 65536)]
+                pos += len(feed)
+            else:
+                feed = b""
+            out += decoder.decompress(feed, max_length=limit - len(out) + 1)
+            if len(out) > limit:
+                raise ValueError("decompressed data exceeds max_output_size")
+    except lzma.LZMAError as error:
+        raise ValueError("invalid or oversized LZMA payload") from error
+    if decoder.unused_data or pos < len(payload):
+        raise ValueError("trailing data after LZMA payload")
+    return bytes(out)
+
+
 def seal(
     data: bytes,
     key: bytes,
@@ -81,16 +105,22 @@ def seal(
         raise TypeError("level must be an integer")
 
     payload = data
-    compressed = False
+    suite = 0x22
+    used_dict: zstd.ZstdCompressionDict | None = None
     if compress:
-        candidate = zstd.ZstdCompressor(level=level, dict_data=dict_obj).compress(data)
-        if len(candidate) < len(data):
-            payload, compressed = candidate, True
-    suite = 0x21 if compressed else 0x22
+        contenders: list[tuple[bytes, int, zstd.ZstdCompressionDict | None]] = [
+            (zstd.ZstdCompressor(level=level, dict_data=dict_obj).compress(data), 0x21, dict_obj),
+            (zstd.ZstdCompressor(level=19, dict_data=dict_obj).compress(data), 0x21, dict_obj),
+            (lzma.compress(data, preset=6), 0x23, None),
+        ]
+        for blob_candidate, suite_candidate, dict_candidate in contenders:
+            if len(blob_candidate) < len(payload):
+                payload, suite, used_dict = blob_candidate, suite_candidate, dict_candidate
+    compressed = suite != 0x22
     nonce = os.urandom(_NONCE_SIZE)
     authenticated_data = bytes([suite]) + aad
     if compressed:
-        authenticated_data = _compressed_aad(suite, aad, dict_obj)
+        authenticated_data = _compressed_aad(suite, aad, used_dict if suite == 0x21 else None)
     ciphertext = AESGCMSIV(_aead_key(key)).encrypt(
         nonce, payload, authenticated_data
     )
@@ -118,17 +148,19 @@ def open_data(
 
     suite = blob[0]
     try:
-        compressed = _SUITES[suite]
+        codec = _SUITES[suite]
     except KeyError as error:
         raise ValueError(f"unknown suite byte: {suite:#x}") from error
-    if not compressed and len(blob) - _FIXED_OVERHEAD > max_output_size:
+    if codec is None and len(blob) - _FIXED_OVERHEAD > max_output_size:
         raise ValueError("raw data exceeds max_output_size")
     authenticated_data = bytes([suite]) + aad
-    if compressed:
-        authenticated_data = _compressed_aad(suite, aad, dict_obj)
+    if codec is not None:
+        authenticated_data = _compressed_aad(suite, aad, dict_obj if codec == "zstd" else None)
     payload = AESGCMSIV(_aead_key(key)).decrypt(
         blob[1 : 1 + _NONCE_SIZE], blob[1 + _NONCE_SIZE :], authenticated_data
     )
-    if compressed:
-        return _decompress(payload, dict_obj, max_output_size)
-    return payload
+    if codec is None:
+        return payload
+    if codec == "lzma":
+        return _decompress_lzma(payload, max_output_size)
+    return _decompress(payload, dict_obj, max_output_size)

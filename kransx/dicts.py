@@ -11,10 +11,11 @@ def train_dict(samples: Iterable[bytes], dict_size: int = 16_384) -> zstd.ZstdCo
     """Train a Zstandard dictionary, propagating training errors to the caller."""
     if isinstance(dict_size, bool) or not isinstance(dict_size, int) or dict_size <= 0:
         raise ValueError("dict_size must be a positive integer")
-    sample_list: list[bytes | bytearray | memoryview[int]] = list(samples)
+    sample_list: list[bytes] = list(samples)
     if any(not isinstance(sample, bytes) for sample in sample_list):
         raise TypeError("samples must contain bytes")
-    return zstd.train_dictionary(dict_size, sample_list)
+    ffi_samples: list[bytes | bytearray | memoryview[int]] = list(sample_list)
+    return zstd.train_dictionary(dict_size, ffi_samples)
 
 
 def save_dict(dict_obj: zstd.ZstdCompressionDict, path: str | os.PathLike[str]) -> None:
