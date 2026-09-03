@@ -42,12 +42,12 @@ Each line below is decided by a checked-in command that exits non-zero when brok
 
 ## Python API
 
-| Function | Signature |
+| Function | What it does |
 |---|---|
-| `seal` | `seal(data: bytes, key: bytes, *, dict_obj=None, aad=b"", compress=True, level=3) -> bytes` |
-| `open_data` | `open_data(blob: bytes, key: bytes, *, dict_obj=None, aad=b"", max_output_size=64*1024*1024) -> bytes` |
-| `train_dict` | `train_dict(samples: Iterable[bytes], dict_size=16384) -> ZstdCompressionDict` |
-| `save_dict` / `load_dict` | `save_dict(dictionary, path)` / `load_dict(path)` |
+| `seal` | Compresses the payload with the codec tournament, then encrypts the winner into a 29-byte-overhead envelope. |
+| `open_data` | Authenticates the envelope, decrypts it, and decompresses the payload without exceeding `max_output_size`. |
+| `train_dict` | Learns a Zstandard dictionary from sample payloads so small, similar messages compress smaller. |
+| `save_dict` / `load_dict` | Writes a trained dictionary to disk and reads it back for reuse across runs. |
 
 `compress=True` runs the tournament and keeps the strictly smallest payload. Raw wins every tie, so incompressible input grows by exactly the 29-byte floor and nothing more. `max_output_size` caps decompressed output. Structural problems raise `ValueError`. Authentication problems raise `InvalidTag` and release no plaintext.
 
