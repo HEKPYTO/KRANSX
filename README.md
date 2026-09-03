@@ -4,8 +4,6 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Seal bytes, get back the same bytes. Compression when it helps, authentication always.
-
 ```python
 import secrets
 from kransx import open_data, seal
@@ -15,7 +13,7 @@ sealed = seal(b"hello world", key, aad=b"record-42")
 assert open_data(sealed, key, aad=b"record-42") == b"hello world"
 ```
 
-KRANSX picks the smallest of Zstandard (your level and 19), LZMA-6, and raw for every payload, then encrypts the winner with AES-256-GCM-SIV. Fixed cost: 29 bytes per envelope (1 suite + 12 nonce + 16 tag). Wrong key, wrong associated data, wrong dictionary, or a flipped byte all fail the same way: `cryptography.exceptions.InvalidTag`.
+KRANSX picks the smallest of Zstandard (your level and 19), LZMA-6, and raw for every payload, then encrypts the winner with AES-256-GCM-SIV. Fixed cost: 29 bytes per envelope (1 suite + 12 nonce + 16 tag). Wrong key, wrong associated data, wrong dictionary, or modified bytes fail with `cryptography.exceptions.InvalidTag`. Malformed envelopes fail with `ValueError` before anything decrypts.
 
 ## Installation
 
@@ -33,14 +31,14 @@ Requires Python 3.10+, `cryptography >= 42`, `zstandard >= 0.22`.
 
 ## Measured behavior
 
-Not marketing claims. Each line below is decided by a checked-in command that exits non-zero when broken.
+Each line below is decided by a checked-in command that exits non-zero when broken.
 
 | Behavior | Evidence | Command |
 |---|---|---|
 | Sealed output never exceeds the best single codec plus 29 bytes | 8 corpora, worst margin 0 | `kransx bench` |
-| Overhead is exactly 29 bytes, empty to 1 MB | 7 sizes, all raw suite | `kransx bench` |
+| Overhead is exactly 29 bytes, empty to 1 MB | 8 sizes, all raw suite | `kransx bench` |
 | Small JSON records seal 45% smaller with a trained dictionary | ratio 0.552 vs 0.85 gate, 5,000 records | `uv run python bench/bench_claim_c1_dict.py` |
-| Tamper at any envelope offset is rejected | 17-case matrix, all exact exceptions | `uv run pytest -q` (71 tests) |
+| Tamper at any envelope offset is rejected | tamper and failure matrix, exact exceptions | `uv run pytest -q` (71 tests) |
 
 ## Python API
 
@@ -120,3 +118,7 @@ Layout: `kransx/` holds seal, open, dicts, cli. `tests/` holds conformance vecto
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
