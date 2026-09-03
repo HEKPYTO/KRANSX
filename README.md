@@ -42,7 +42,7 @@ Each line below is decided by a checked-in command that exits non-zero when brok
 
 ## Python API
 
-| Function | What it does |
+| Method | Functionality |
 |---|---|
 | `seal` | Compresses the payload with the codec tournament, then encrypts the winner into a 29-byte-overhead envelope. |
 | `open_data` | Authenticates the envelope, decrypts it, and decompresses the payload without exceeding `max_output_size`. |
