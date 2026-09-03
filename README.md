@@ -13,7 +13,7 @@ sealed = seal(b"hello world", key, aad=b"record-42")
 assert open_data(sealed, key, aad=b"record-42") == b"hello world"
 ```
 
-KRANSX picks the smallest of Zstandard (your level and 19), LZMA-6, and raw for every payload, then encrypts the winner with AES-256-GCM-SIV. Fixed cost: 29 bytes per envelope (1 suite + 12 nonce + 16 tag). Wrong key, wrong associated data, wrong dictionary, or modified bytes fail with `cryptography.exceptions.InvalidTag`. Malformed envelopes fail with `ValueError` before anything decrypts.
+KRANSX picks the smallest of Zstandard, LZMA-6, and raw for every payload, then encrypts the winner with AES-256-GCM-SIV. Fixed cost: 29 bytes per envelope (1 suite + 12 nonce + 16 tag). Wrong key, wrong associated data, wrong dictionary, or modified bytes fail with `cryptography.exceptions.InvalidTag`. Malformed envelopes fail with `ValueError` before anything decrypts.
 
 ## Installation
 
