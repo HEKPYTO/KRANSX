@@ -56,9 +56,9 @@ def _decompress(payload: bytes, dict_obj: zstd.ZstdCompressionDict | None, limit
             raise ValueError("invalid Zstandard frame")
         if advertised_size != zstd.CONTENTSIZE_UNKNOWN and advertised_size > limit:
             raise ValueError("decompressed data exceeds max_output_size")
-        return zstd.ZstdDecompressor(
-            dict_data=dict_obj, max_window_size=max(1, (limit + 1023) // 1024)
-        ).decompress(payload, max_output_size=limit, allow_extra_data=False)
+        return zstd.ZstdDecompressor(dict_data=dict_obj).decompress(
+            payload, max_output_size=limit, allow_extra_data=False
+        )
     except zstd.ZstdError as error:
         raise ValueError("invalid or oversized Zstandard payload") from error
 
@@ -108,11 +108,12 @@ def seal(
     suite = 0x22
     used_dict: zstd.ZstdCompressionDict | None = None
     if compress:
+        zstd_levels = (level,) if level == 19 else (level, 19)
         contenders: list[tuple[bytes, int, zstd.ZstdCompressionDict | None]] = [
-            (zstd.ZstdCompressor(level=level, dict_data=dict_obj).compress(data), 0x21, dict_obj),
-            (zstd.ZstdCompressor(level=19, dict_data=dict_obj).compress(data), 0x21, dict_obj),
-            (lzma.compress(data, preset=6), 0x23, None),
+            (zstd.ZstdCompressor(level=lvl, dict_data=dict_obj).compress(data), 0x21, dict_obj)
+            for lvl in zstd_levels
         ]
+        contenders.append((lzma.compress(data, preset=6), 0x23, None))
         for blob_candidate, suite_candidate, dict_candidate in contenders:
             if len(blob_candidate) < len(payload):
                 payload, suite, used_dict = blob_candidate, suite_candidate, dict_candidate
