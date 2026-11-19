@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Removed an inert decompressor window bound; the one-shot API ignored it.
+  Output size stays capped by `max_output_size`.
+- `seal(level=19)` no longer compresses the same input twice.
+
 ## 0.2.0
 
 - Codec tournament: `seal` tries Zstandard (requested level and 19) plus
