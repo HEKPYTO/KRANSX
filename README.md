@@ -101,6 +101,7 @@ This library is the envelope only. Key generation, distribution, storage, rotati
 - **Nonces** come from `os.urandom(12)` per seal. AES-GCM-SIV tolerates reuse better than most modes, but do not reuse them.
 - **Compression oracles.** Sealed size reveals which suite won. Never compress secrets mixed with attacker-controlled input without application-level separation. Pass `compress=False` when in doubt.
 - **Resource limits.** `max_output_size` bounds decompressed output. For untrusted input, also cap the encrypted bytes before calling `open_data`.
+- **Plaintext output.** `open` writes recovered plaintext with `0600` permissions on POSIX.
 
 This is an implementation with conformance vectors and tamper coverage, not an external audit.
 

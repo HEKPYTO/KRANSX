@@ -56,15 +56,18 @@ def _decompress(payload: bytes, dict_obj: zstd.ZstdCompressionDict | None, limit
             raise ValueError("invalid Zstandard frame")
         if advertised_size != zstd.CONTENTSIZE_UNKNOWN and advertised_size > limit:
             raise ValueError("decompressed data exceeds max_output_size")
-        return zstd.ZstdDecompressor(dict_data=dict_obj).decompress(
-            payload, max_output_size=limit, allow_extra_data=False
+        # max_window_size is bytes here, despite the KiB wording in the docs.
+        decoder = zstd.ZstdDecompressor(
+            dict_data=dict_obj,
+            max_window_size=max(1024, (limit + 1023) // 1024 * 1024),
         )
+        return decoder.decompress(payload, max_output_size=limit, allow_extra_data=False)
     except zstd.ZstdError as error:
         raise ValueError("invalid or oversized Zstandard payload") from error
 
 
 def _decompress_lzma(payload: bytes, limit: int) -> bytes:
-    decoder = lzma.LZMADecompressor()
+    decoder = lzma.LZMADecompressor(memlimit=max(16 * 1024 * 1024, limit + 1024 * 1024))
     out = bytearray()
     pos = 0
     try:
@@ -152,8 +155,9 @@ def open_data(
         codec = _SUITES[suite]
     except KeyError as error:
         raise ValueError(f"unknown suite byte: {suite:#x}") from error
-    if codec is None and len(blob) - _FIXED_OVERHEAD > max_output_size:
-        raise ValueError("raw data exceeds max_output_size")
+    if len(blob) - _FIXED_OVERHEAD > max_output_size:
+        kind = "raw" if codec is None else "compressed"
+        raise ValueError(f"{kind} data exceeds max_output_size")
     authenticated_data = bytes([suite]) + aad
     if codec is not None:
         authenticated_data = _compressed_aad(suite, aad, dict_obj if codec == "zstd" else None)

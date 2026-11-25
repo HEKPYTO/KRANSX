@@ -114,6 +114,15 @@ def test_raw_size_is_rejected_before_decryption(monkeypatch: pytest.MonkeyPatch)
     with pytest.raises(ValueError, match="raw data"):
         open_data(oversized, MASTER_KEY, max_output_size=9)
 
+def test_compressed_size_is_rejected_before_decryption(monkeypatch: pytest.MonkeyPatch) -> None:
+    class MustNotDecrypt:
+        def __init__(self, _: bytes) -> None:
+            raise AssertionError("compressed output limit must precede AEAD construction")
+
+    monkeypatch.setattr(core, "AESGCMSIV", MustNotDecrypt)
+    with pytest.raises(ValueError, match="compressed data"):
+        open_data(COMPRESSED_ENVELOPE, bytes(reversed(MASTER_KEY)), max_output_size=9)
+
 
 def test_decompression_limits_known_and_unknown_size_frames() -> None:
     with pytest.raises(ValueError, match="max_output_size"):
@@ -125,6 +134,37 @@ def test_decompression_limits_known_and_unknown_size_frames() -> None:
     assert (
         open_data(UNKNOWN_SIZE_COMPRESSED_ENVELOPE, MASTER_KEY, aad=b"unknown-size") == b"Z" * 4096
     )
+
+
+def test_zstd_window_limit_rejects_oversized_frame_window() -> None:
+    params = zstd.ZstdCompressionParameters.from_level(3, window_log=23, write_content_size=0)
+    hostile = zstd.ZstdCompressor(compression_params=params).compress(b"\0" * 100_000)
+    assert zstd.get_frame_parameters(hostile).window_size == 131_072
+    with pytest.raises(ValueError, match="invalid or oversized"):
+        open_data(
+            _authenticated_compressed_payload(hostile),
+            MASTER_KEY,
+            aad=b"trailing-frame",
+            max_output_size=100_000,
+        )
+    plain = zstd.ZstdCompressor().compress(b"\0" * 100_000)
+    assert (
+        open_data(
+            _authenticated_compressed_payload(plain),
+            MASTER_KEY,
+            aad=b"trailing-frame",
+            max_output_size=100_000,
+        )
+        == b"\0" * 100_000
+    )
+
+
+@pytest.mark.parametrize("level", [3, 19])
+def test_zstd_envelopes_round_trip_at_default_limit(level: int) -> None:
+    data = COMPRESSED_DATA * 2500
+    blob = seal(data, MASTER_KEY, level=level)
+    assert blob[0] == 0x21
+    assert open_data(blob, MASTER_KEY) == data
 
 
 @pytest.mark.parametrize(
@@ -308,3 +348,23 @@ def test_cli_key_file_round_trip_and_expected_errors(tmp_path: Path) -> None:
     assert result.returncode == 2
     assert "Traceback" not in result.stderr
     assert key.read_bytes() == original_key
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX mode bits")
+def test_cli_output_modes(tmp_path: Path) -> None:
+    key, source, sealed, opened = (tmp_path / name for name in ("key", "in", "sealed", "out"))
+    source.write_bytes(b"cli mode data" * 100)
+
+    def run(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-m", "kransx.cli", *args],
+            text=True,
+            capture_output=True,
+            preexec_fn=lambda: os.umask(0o022),
+        )
+
+    assert run("keygen", str(key)).returncode == 0
+    assert run("seal", str(source), str(sealed), "--key-file", str(key)).returncode == 0
+    assert run("open", str(sealed), str(opened), "--key-file", str(key)).returncode == 0
+    assert sealed.stat().st_mode & 0o777 == 0o644
+    assert opened.stat().st_mode & 0o777 == 0o600

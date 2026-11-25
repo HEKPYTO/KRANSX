@@ -29,8 +29,9 @@ def _key(path: str) -> bytes:
     return key
 
 
-def _write_new(path: Path, data: bytes) -> None:
-    with path.open("xb") as output:
+def _write_new(path: Path, data: bytes, *, mode: int = 0o644) -> None:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+    with os.fdopen(descriptor, "wb") as output:
         output.write(data)
 
 
@@ -59,7 +60,7 @@ def _open(args: argparse.Namespace) -> None:
         aad=_hex(args.aad),
         max_output_size=args.max_output_size,
     )
-    _write_new(target, result)
+    _write_new(target, result, mode=0o600)
     print(f"opened {source.stat().st_size} -> {len(result)} bytes")
 
 

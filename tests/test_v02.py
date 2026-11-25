@@ -79,6 +79,19 @@ def test_lzma_bomb_truncation_and_trailing_rejected() -> None:
         open_data(_lzma_envelope(big[:10], nonce), MASTER_KEY)
 
 
+def test_lzma_memlimit_bounds_declared_dict() -> None:
+    data = b"x"
+    payload = lzma.compress(
+        data,
+        format=lzma.FORMAT_XZ,
+        filters=[{"id": lzma.FILTER_LZMA2, "dict_size": 64 * 1024 * 1024}],
+    )
+    env = _lzma_envelope(payload, bytes.fromhex("00112233445566778899aabb"))
+    assert open_data(env, MASTER_KEY, max_output_size=64 * 1024 * 1024) == data
+    with pytest.raises(ValueError, match="invalid or oversized LZMA"):
+        open_data(env, MASTER_KEY, max_output_size=8 * 1024 * 1024)
+
+
 def test_lzma_cross_chunk_trailing_rejected() -> None:
     import random
     rng = random.Random(7)
