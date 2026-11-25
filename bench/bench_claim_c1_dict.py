@@ -103,7 +103,6 @@ def main() -> None:
     s_kransx = sum(len(e) for e in sealed)
     ratio = s_kransx / s_base
 
-    # Context-only baselines (do not decide the claim).
     lzma_sum = sum(len(lzma.compress(r, preset=6)) for r in recs)
     bz2_sum = sum(len(bz2.compress(r)) for r in recs)
     raw_sum = sum(len(r) for r in recs)
@@ -117,7 +116,6 @@ def main() -> None:
             break
     print(f"roundtrips_all_5000={'ok' if roundtrips_ok else 'FAIL'}")
 
-    # Mismatched dictionary must fail closed with InvalidTag.
     rng_w = random.Random(0xC1A1D)
     wrong_samples = [bytes(rng_w.randrange(256) for _ in range(100)) for _ in range(500)]
     wrong_dict = train_dict(wrong_samples, dict_size=DICT_SIZE)
@@ -135,7 +133,6 @@ def main() -> None:
     print(f"wrong_dict={'ok' if wrong_ok else 'FAIL'} "
           f"(dicts_differ={dicts_differ}, checked={WRONG_DICT_SAMPLE})")
 
-    # Latency side-column (informational only): min-of-5 over 100-record sample.
     sample = recs[:100]
     sample_sealed = sealed[:100]
     t_seal = timed(lambda: [seal(r, KEY, dict_obj=dict_obj) for r in sample]) * 1000
