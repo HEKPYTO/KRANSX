@@ -18,6 +18,7 @@ KRANSX picks the smallest of Zstandard, LZMA-6, and raw for every payload, then 
 ## Documentation
 
 - [Envelope specification v0.2](kransx/README.md) — wire format, limits, threat model, and versioning policy.
+- [Benchmark gates](bench/README.md), [tests](tests/README.md), [scripts](scripts/README.md).
 
 ## Installation
 
