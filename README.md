@@ -118,7 +118,3 @@ Layout: `kransx/` holds seal, open, dicts, cli. `tests/` holds conformance vecto
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md).

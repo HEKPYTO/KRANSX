@@ -38,6 +38,8 @@ jobs:
           python-version: "3.14"
           version: "0.12.7"
           enable-cache: true
+      - name: Markdown policy
+        run: test -z "$(git ls-files '*.md' ':(exclude)README.md' ':(exclude)**/README.md')"
       - run: uv sync --locked --extra dev
       - run: uv run pre-commit run --all-files
       - run: uv run kransx bench

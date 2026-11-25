@@ -14,9 +14,16 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.7"
+      - run: uv sync --locked --extra dev
+      - run: uv run pre-commit run --all-files
+      - run: uv run pytest -q
+      - run: uv run kransx bench
+      - run: uv run python bench/bench_claim_c1_dict.py
       - run: uv build
       - run: uv publish --trusted-publishing always
