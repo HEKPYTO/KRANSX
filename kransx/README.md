@@ -123,7 +123,7 @@ Non-goals: key generation in the library, key distribution and rotation, hiding 
 
 ## Versioning and migration policy
 
-- `SPEC_VERSION = "0.2"` in `kransx/__init__.py` names this document. The package release version is separate (`__version__ = "0.2.1"`).
+- `SPEC_VERSION = "0.2"` in `kransx/__init__.py` names this document. The package release version is separate (`__version__ = "0.3.0"`).
 - Suite bytes `0x21`, `0x22`, and `0x23` are frozen. Never repurpose a byte or change the meaning of an existing suite.
 - The v0.2 wire format accepts the v0.1 conformance vectors unchanged; the `v0.1` strings in HKDF info and dictionary binding are frozen identifiers retained for that reason.
 - Any breaking wire change requires a new suite byte and a spec version bump. Old suites remain readable by the new version.

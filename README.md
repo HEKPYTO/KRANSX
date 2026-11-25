@@ -124,6 +124,7 @@ Layout: `kransx/` holds seal, open, dicts, cli. `tests/` holds conformance vecto
 
 ## Release
 
+- Release 0.3.0: wire format stays v0.2; key files must be `0600` and `seal` defaults to a 64 MiB input cap.
 - CI: Python 3.10–3.14 on Linux, macOS, and Windows, plus a minimum-dependency compatibility job.
 - Reproducibility: `scripts/normalize_sdist.py` fixes sdist mtimes; two `SOURCE_DATE_EPOCH=1700000000` builds must give identical sdist and wheel hashes.
 - Attestation: release artifacts carry build-provenance attestations. PyPI publication remains owner-gated.
