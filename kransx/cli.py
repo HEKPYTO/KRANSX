@@ -89,7 +89,7 @@ def _bench(_: argparse.Namespace) -> None:
         target = root / script
         if not target.is_file():
             raise OSError(f"{script} ships with the repo checkout, not the wheel")
-        proc = subprocess.run([sys.executable, str(target)], check=False)
+        proc = subprocess.run([sys.executable, str(target)], check=False, cwd=root)
         if proc.returncode != 0:
             raise SystemExit(proc.returncode)
 

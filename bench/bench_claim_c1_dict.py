@@ -141,11 +141,10 @@ def main() -> None:
 
     out = Path(__file__).resolve().parent / "results_c1.tsv"
     header = ("n\ttrain\tdict_size\traw_sum\tb1_sum\tlzma_sum\tbz2_sum\ts_kransx\ts_base"
-              "\tratio\tgate\troundtrips\twrong_dict\tseal_ms_100\topen_ms_100")
+              "\tratio\tgate\troundtrips\twrong_dict")
     row = (f"{N_RECORDS}\t{N_TRAIN}\t{DICT_SIZE}\t{raw_sum}\t{sum(b1_lens)}\t{lzma_sum}\t"
            f"{bz2_sum}\t{s_kransx}\t{s_base}\t{ratio:.4f}\t{GATE}\t"
-           f"{'ok' if roundtrips_ok else 'FAIL'}\t{'ok' if wrong_ok else 'FAIL'}\t"
-           f"{t_seal:.2f}\t{t_open:.2f}")
+           f"{'ok' if roundtrips_ok else 'FAIL'}\t{'ok' if wrong_ok else 'FAIL'}")
     versions_line = (f"# kransx={KRANSX_VERSION} python={sys.version} "
                      f"zstandard={zstd.__version__} ZSTD_VERSION={zstd.ZSTD_VERSION} "
                      f"cryptography={cryptography.__version__} machine={platform.machine()} "

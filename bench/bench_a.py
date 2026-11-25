@@ -81,10 +81,10 @@ def main() -> None:
         line_out = (
             f"{name}\t{len(data)}\t{len(z1)}\t{len(z3)}\t{len(z19)}\t"
             f"{len(b2)}\t{len(lz)}\t{len(k)}\t{len(k19)}\t{len(kd)}\t{k[0]:#x}\t"
-            f"{ratio:.3f}\t{best_single}\t{k_vs_best}\tseal_ms={t_seal:.2f}\tz19_ms={t_z19:.2f}"
+            f"{ratio:.3f}\t{best_single}\t{k_vs_best}"
         )
         rows.append(line_out)
-        print(line_out)
+        print(f"{line_out}\tseal_ms={t_seal:.2f}\tz19_ms={t_z19:.2f}")
     out = Path(__file__).resolve().parent / "results_a.tsv"
     out.write_text("\n".join(rows) + "\n")
     print(f"wrote {out}")

@@ -35,19 +35,20 @@ def expect(exc_types, fn, *args, **kwargs) -> str:
 
 def main() -> None:
     rows: list[str] = []
-    print("size\traw_len\tenv_len\toverhead\tsuite\tseal_ms\topen_ms")
-    rows.append("size\traw_len\tenv_len\toverhead\tsuite\tseal_ms\topen_ms")
+    header = "size\traw_len\tenv_len\toverhead\tsuite"
+    print(f"{header}\tseal_ms\topen_ms")
+    rows.append(header)
     for n in [0, 1, 16, 100, 1024, 10_240, 102_400, 1_048_576]:
         data = os.urandom(n) if n else b""
         env = seal(data, KEY)
         assert open_data(env, KEY) == data
         overhead = len(env) - n
-        line = (
-            f"{n}\t{n}\t{len(env)}\t{overhead}\t{env[0]:#x}\t"
-            f"{timed(seal, data, KEY) * 1000:.3f}\t{timed(open_data, env, KEY) * 1000:.3f}"
-        )
+        line = f"{n}\t{n}\t{len(env)}\t{overhead}\t{env[0]:#x}"
         rows.append(line)
-        print(line)
+        print(
+            f"{line}\t{timed(seal, data, KEY) * 1000:.3f}\t"
+            f"{timed(open_data, env, KEY) * 1000:.3f}"
+        )
     zeros = b"\x00" * 10_240
     env_z = seal(zeros, KEY)
     print(f"zeros_10K\tsuite={env_z[0]:#x}\tenv={len(env_z)}\traw_would_be={10_240 + 29}")
@@ -55,11 +56,17 @@ def main() -> None:
 
     print("tamper\tpos\tresult")
     rows.append("tamper\tpos\tresult")
+    holds = True
+    failures: list[str] = []
     env = seal(b"A" * 100, KEY, aad=b"ctx")
     for label, pos in [("suite", 0), ("nonce", 5), ("ct", 20), ("tag", len(env) - 1)]:
         t = bytearray(env)
         t[pos] ^= 1
-        r = expect((InvalidTag, ValueError), open_data, bytes(t), KEY, aad=b"ctx")
+        excs = (InvalidTag, ValueError)
+        r = expect(excs, open_data, bytes(t), KEY, aad=b"ctx")
+        if r not in [e.__name__ for e in excs]:
+            holds = False
+            failures.append(f"tamper {label}@{pos}: expected {excs}, got {r}")
         rows.append(f"tamper\t{label}@{pos}\t{r}")
         print(f"tamper\t{label}@{pos}\t{r}")
 
@@ -81,11 +88,19 @@ def main() -> None:
     rows.append("case\tresult")
     for name, excs, fn, args, kwargs in cases:
         r = expect(excs, fn, *args, **kwargs)
+        if r not in [e.__name__ for e in excs]:
+            holds = False
+            failures.append(f"case {name}: expected {excs}, got {r}")
         rows.append(f"{name}\t{r}")
         print(f"{name}\t{r}")
     out = Path(__file__).resolve().parent / "results_b.tsv"
     out.write_text("\n".join(rows) + "\n")
     print(f"wrote {out}")
+    for failure in failures:
+        print(f"FAIL {failure}")
+    print("CLAIM-B-HOLDS" if holds else "CLAIM-B-BROKEN")
+    if not holds:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

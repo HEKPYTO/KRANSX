@@ -95,7 +95,7 @@ def seal(
     compress: bool = True,
     level: int = 3,
 ) -> bytes:
-    """Compress *data* when smaller, then encrypt it in a envelope."""
+    """Compress *data* when smaller, then encrypt it in an envelope."""
     data = _require_bytes("data", data)
     key = _validate_key(key)
     aad = _require_bytes("aad", aad)
