@@ -114,14 +114,26 @@ def test_raw_size_is_rejected_before_decryption(monkeypatch: pytest.MonkeyPatch)
     with pytest.raises(ValueError, match="raw data"):
         open_data(oversized, MASTER_KEY, max_output_size=9)
 
-def test_compressed_size_is_rejected_before_decryption(monkeypatch: pytest.MonkeyPatch) -> None:
-    class MustNotDecrypt:
-        def __init__(self, _: bytes) -> None:
-            raise AssertionError("compressed output limit must precede AEAD construction")
 
-    monkeypatch.setattr(core, "AESGCMSIV", MustNotDecrypt)
-    with pytest.raises(ValueError, match="compressed data"):
-        open_data(COMPRESSED_ENVELOPE, bytes(reversed(MASTER_KEY)), max_output_size=9)
+def test_compressed_envelope_may_expand_beyond_output_limit() -> None:
+    payload = b"\x28\xb5\x2f\xfd\x20\x01\x09\x00\x00L"
+    assert len(payload) == 10
+    assert (
+        open_data(
+            _authenticated_compressed_payload(payload),
+            MASTER_KEY,
+            aad=b"trailing-frame",
+            max_output_size=1,
+        )
+        == b"L"
+    )
+
+
+def test_large_zstd_output_limit_is_accepted() -> None:
+    data = b"Z" * 4096
+    blob = seal(data, MASTER_KEY)
+    assert blob[0] == 0x21
+    assert open_data(blob, MASTER_KEY, max_output_size=3 * 1024**3) == data
 
 
 def test_decompression_limits_known_and_unknown_size_frames() -> None:
