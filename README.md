@@ -15,6 +15,10 @@ assert open_data(sealed, key, aad=b"record-42") == b"hello world"
 
 KRANSX picks the smallest of Zstandard, LZMA-6, and raw for every payload, then encrypts the winner with AES-256-GCM-SIV. Fixed cost: 29 bytes per envelope (1 suite + 12 nonce + 16 tag). Wrong key, wrong associated data, wrong dictionary, or modified bytes fail with `cryptography.exceptions.InvalidTag`. Malformed envelopes fail with `ValueError` before anything decrypts.
 
+## Documentation
+
+- [Envelope specification v0.2](kransx/README.md) — wire format, limits, threat model, and versioning policy.
+
 ## Installation
 
 ```bash
