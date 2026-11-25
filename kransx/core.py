@@ -56,7 +56,6 @@ def _decompress(payload: bytes, dict_obj: zstd.ZstdCompressionDict | None, limit
             raise ValueError("invalid Zstandard frame")
         if advertised_size != zstd.CONTENTSIZE_UNKNOWN and advertised_size > limit:
             raise ValueError("decompressed data exceeds max_output_size")
-        # max_window_size is bytes here, despite the KiB wording in the docs.
         decoder = zstd.ZstdDecompressor(
             dict_data=dict_obj,
             max_window_size=max(1024, (limit + 1023) // 1024 * 1024),
