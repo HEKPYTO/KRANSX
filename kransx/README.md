@@ -76,8 +76,10 @@ A candidate replaces the incumbent **only when strictly shorter**. Raw therefore
 | LZMA memory limit | `memlimit = max(16,777,216, limit + 1,048,576)`; floor 16 MiB, default `68,157,440` (65 MiB) | `core._decompress_lzma` |
 | LZMA streaming cap | feed at most `65,536` bytes per chunk; `max_length = limit - len(out) + 1`; output above limit, truncation, or trailing bytes → `ValueError` | `core._decompress_lzma` |
 | CLI encrypted-input cap | `max_output_size + 29 + 1,048,576`; default `68,157,469`; one byte more → `ValueError` | `cli._read_bounded`, `cli._open` |
+| CLI plaintext-input cap | `--max-input-size`; default `67,108,864`; must be positive; one byte more → `ValueError` | `cli._read_bounded`, `cli._seal` |
 
 `open_data` does not cap the encrypted input supplied by a library caller. Only the CLI does. A library caller facing untrusted bytes must impose its own input cap; the CLI formula is the reference choice.
+The `seal` CLI reads at most `--max-input-size` bytes and rejects a non-positive value or an oversized input before writing output.
 
 A compressed envelope is allowed to be larger than `max_output_size`: the cap applies to recovered plaintext, not to ciphertext. A Zstandard frame with unknown advertised size is still decompressed under the output and window bounds.
 
@@ -85,11 +87,11 @@ A compressed envelope is allowed to be larger than `max_output_size`: the cap ap
 
 | Condition | Result |
 |---|---|
-| Short blob, unknown suite, bad key length, non-positive cap, oversized raw data, malformed frame, oversized or trailing decompressed data | `ValueError` |
+| Short blob, unknown suite, bad key length, non-private key file on POSIX, non-positive cap, oversized raw data, malformed frame, oversized or trailing decompressed data | `ValueError` |
 | Wrong key, wrong AAD, wrong dictionary, any bit flip in suite/nonce/ciphertext/tag | `InvalidTag` (`cryptography.exceptions.InvalidTag`) |
 | Wrong argument type (e.g. `str` where `bytes` expected) | `TypeError` |
 
-`InvalidTag` is raised before any decompression or plaintext output. The CLI catches `InvalidTag`, `OSError`, `ValueError`, and `zstd.ZstdError` and reports them via `argparse` `parser.error`, which exits with status `2` and no traceback.
+`InvalidTag` is raised before any decompression or plaintext output. The CLI catches `InvalidTag`, `OSError`, `ValueError`, `OverflowError`, and `zstd.ZstdError` and reports them via `argparse` `parser.error`, which exits with status `2` and no traceback. A numeric option too large for the host raises `OverflowError` and takes the same path.
 
 ## Threat model
 
@@ -110,7 +112,7 @@ A compressed envelope is allowed to be larger than `max_output_size`: the cap ap
 
 - CLI `open` writes plaintext with `0600`, using `os.open(..., O_CREAT | O_EXCL, 0o600)`; it never overwrites an existing path.
 - CLI `keygen` writes a fresh key with `0600` and `O_EXCL`.
-- **Key-file mode is not enforced.** `_key` only reads the file and checks that it contains exactly 32 bytes. A world-readable 32-byte key file is accepted; the caller must secure key files it creates outside `keygen`.
+- **Key-file mode is enforced on POSIX.** `_key` calls `stat()` and rejects any `st_mode & 0o077` bit before reading, so a 32-byte world-readable key file is refused with `ValueError("key file must be private (0600)")`; Windows keeps the length-only check. Keys made outside `keygen` must be `0600` to be usable.
 - Sealed output (`seal`) and trained dictionaries (`train`) are written with the default `0644` mode (subject to the process umask). They are not secret material. Plaintext and keys are the confidential artifacts.
 
 ### Guarantees and non-goals
@@ -137,11 +139,12 @@ Non-goals: key generation in the library, key distribution and rotation, hiding 
 | Nonce / tag / binding size | 12 / 16 / 32 bytes | `core.seal`, `AESGCMSIV`, `core._compressed_aad` |
 | Default plaintext output cap | 64 MiB (67,108,864 bytes) | `core.open_data`, CLI `--max-output-size` |
 | CLI encrypted input cap | cap + 29 + 1 MiB; 68,157,469 bytes at default | `cli._read_bounded` |
+| CLI plaintext-input cap | `--max-input-size`; 64 MiB (67,108,864 bytes) at default | `cli._read_bounded`, `cli._seal` |
 | Zstandard window ceiling | 2 GiB (2,147,483,648 bytes); default bound 64 MiB | `core._decompress` |
 | LZMA memory floor / default | 16 MiB / 65 MiB (68,157,440 bytes) | `core._decompress_lzma` |
 | LZMA feed chunk | 65,536 bytes | `core._decompress_lzma` |
 | Default Zstandard level / trained dictionary size | 3 / 16,384 bytes | `core.seal`, `cli._parser`, `dicts.train_dict` |
-| CLI key file | exactly 32 bytes; mode not checked | `cli._key` |
+| CLI key file | exactly 32 bytes; POSIX mode must be `0600` (`st_mode & 0o077` rejected) | `cli._key` |
 | CLI plaintext output mode | `0600`, `O_EXCL` | `cli._open` |
 | CLI keygen mode | `0600`, `O_EXCL` | `cli._keygen` |
 | CLI sealed output / dictionary mode | `0644` before umask, `O_EXCL` | `cli._write_new` |
@@ -160,8 +163,9 @@ Each numeric claim above was checked against the implementation and, where noted
 | Zstandard advertised size, window bound, 2 GiB ceiling | Read `core._decompress` formula; runtime: ceiling `2,147,483,648`, default bound `67,108,864` (64 MiB). Tests: `test_decompression_limits_known_and_unknown_size_frames`, `test_zstd_window_limit_rejects_oversized_frame_window`, `test_large_zstd_output_limit_is_accepted`. |
 | LZMA 16 MiB floor, default 65 MiB, 64 KiB chunks | Read `core._decompress_lzma`; runtime: floor `16,777,216`, default `68,157,440`. Tests: `test_lzma_memlimit_bounds_declared_dict`, `test_lzma_bomb_truncation_and_trailing_rejected`, `test_lzma_cross_chunk_trailing_rejected`. |
 | CLI input cap `cap + 29 + 1 MiB` | Read `cli._open` and `cli._read_bounded`; runtime at default: `68,157,469`. Test: `test_cli_rejects_input_larger_than_output_limit` (2 MiB input with `--max-output-size 1024` exits 2, no output file). |
-| CLI `0600` plaintext and key, `0644` sealed output | Read `cli._write_new`, `cli._open`, `cli._keygen`; confirmed no mode check in `cli._key`. Tests: `test_cli_output_modes`, `test_cli_key_file_round_trip_and_expected_errors`. |
+| CLI plaintext input cap `--max-input-size` | Read `cli._seal` and `cli._read_bounded`; default `67,108,864`, non-positive rejected. Tests: `test_cli_rejects_input_larger_than_max_input_size` (65-byte input with `--max-input-size 64` exits 2, no output; limit `0` exits 2). |
+| CLI `0600` plaintext and key, `0644` sealed output | Read `cli._write_new`, `cli._open`, `cli._keygen`, and the POSIX `st_mode & 0o077` check in `cli._key`. Tests: `test_cli_output_modes`, `test_cli_key_file_round_trip_and_expected_errors`, `test_cli_rejects_world_readable_key` (0644 key exits 2, no output). |
 | Codec tournament and suite bytes | Read `core.seal` candidate loop and `_SUITES`. Tests: `test_tournament_never_exceeds_best_single_plus_overhead`, `test_seal_selects_lzma_when_zstd_expands`, `test_suite_flip_to_other_valid_suite_fails`, `test_v01_vectors_still_open`. |
-| CLI exit 2 mapping | Read `cli.main` exception handlers. Tests: `test_cli_key_file_round_trip_and_expected_errors`, `test_cli_rejects_input_larger_than_output_limit`. |
+| CLI exit 2 mapping | Read `cli.main` exception handlers, including `OverflowError`. Tests: `test_cli_key_file_round_trip_and_expected_errors`, `test_cli_rejects_input_larger_than_output_limit`, `test_cli_rejects_overflowing_output_limit` (`--max-output-size 10**30` exits 2, no traceback). |
 
-The targeted test selection above passed before this document was written; document-only changes do not alter those behaviors.
+The targeted test selection above passed after these controls were added; document-only changes do not alter those behaviors.

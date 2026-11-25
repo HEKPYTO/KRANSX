@@ -42,7 +42,7 @@ Each line below is decided by a checked-in command that exits non-zero when brok
 | Sealed output never exceeds the best single codec plus 29 bytes | 8 corpora, worst margin 0 | `kransx bench` |
 | Overhead is exactly 29 bytes, empty to 1 MB | 8 sizes, all raw suite | `kransx bench` |
 | Small JSON records seal 45% smaller with a trained dictionary | ratio 0.552 vs 0.85 gate, 5,000 records | `uv run python bench/bench_claim_c1_dict.py` |
-| Tamper at any envelope offset is rejected | tamper and failure matrix, exact exceptions | `uv run pytest -q` (79 tests) |
+| Tamper at any envelope offset is rejected | tamper and failure matrix, exact exceptions | `uv run pytest -q` (82 tests) |
 
 ## Python API
 
@@ -82,6 +82,8 @@ kransx bench
 
 - `--aad` takes hex-encoded bytes.
 - `--max-output-size` caps plaintext size on open.
+- `--max-input-size` caps plaintext bytes read by `seal` (default 64 MiB); values must be positive.
+- Key files must contain exactly 32 bytes and be private (`0600`) on POSIX; `keygen` writes them that way.
 - Output files are created exclusively and never overwritten.
 - `bench` reruns the A+B claim gates and fails non-zero on any regression.
 

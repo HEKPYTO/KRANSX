@@ -23,7 +23,10 @@ def _hex(value: str) -> bytes:
 
 
 def _key(path: str) -> bytes:
-    key = Path(path).read_bytes()
+    location = Path(path)
+    if os.name == "posix" and location.stat().st_mode & 0o077:
+        raise ValueError("key file must be private (0600)")
+    key = location.read_bytes()
     if len(key) != 32:
         raise ValueError("key file must contain exactly 32 raw bytes")
     return key
@@ -37,9 +40,11 @@ def _write_new(path: Path, data: bytes, *, mode: int = 0o644) -> None:
 
 def _seal(args: argparse.Namespace) -> None:
     source, target = Path(args.infile), Path(args.outfile)
+    if args.max_input_size <= 0:
+        raise ValueError("max_input_size must be positive")
     dictionary = load_dict(args.dictionary) if args.dictionary else None
     result = seal(
-        source.read_bytes(),
+        _read_bounded(source, args.max_input_size, "max_input_size"),
         _key(args.key_file),
         dict_obj=dictionary,
         aad=_hex(args.aad),
@@ -50,18 +55,20 @@ def _seal(args: argparse.Namespace) -> None:
     print(f"sealed {source.stat().st_size} -> {len(result)} bytes")
 
 
-def _read_bounded(path: Path, limit: int) -> bytes:
+def _read_bounded(path: Path, limit: int, name: str) -> bytes:
     with path.open("rb") as stream:
         data = stream.read(max(0, limit))
         if stream.read(1):
-            raise ValueError("input exceeds max_output_size")
+            raise ValueError(f"input exceeds {name}")
     return data
 
 
 def _open(args: argparse.Namespace) -> None:
     source, target = Path(args.infile), Path(args.outfile)
     dictionary = load_dict(args.dictionary) if args.dictionary else None
-    blob = _read_bounded(source, args.max_output_size + _FIXED_OVERHEAD + 1024 * 1024)
+    blob = _read_bounded(
+        source, args.max_output_size + _FIXED_OVERHEAD + 1024 * 1024, "max_output_size"
+    )
     result = open_data(
         blob,
         _key(args.key_file),
@@ -115,6 +122,7 @@ def _parser() -> argparse.ArgumentParser:
     seal_parser.add_argument("--aad", default="", help="hexadecimal associated data")
     seal_parser.add_argument("--no-compress", action="store_true")
     seal_parser.add_argument("--level", type=int, default=3)
+    seal_parser.add_argument("--max-input-size", type=int, default=64 * 1024 * 1024)
     seal_parser.set_defaults(handler=_seal)
     open_parser = commands.add_parser("open", help="authenticate then decrypt")
     open_parser.add_argument("infile")
@@ -145,7 +153,7 @@ def main() -> None:
         handler(args)
     except InvalidTag:
         parser.error("authentication failed")
-    except (OSError, ValueError, zstd.ZstdError) as error:
+    except (OSError, ValueError, OverflowError, zstd.ZstdError) as error:
         parser.error(str(error))
 
 

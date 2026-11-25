@@ -298,6 +298,8 @@ def test_cli_key_file_round_trip_and_expected_errors(tmp_path: Path) -> None:
     assert opened.read_bytes() == source.read_bytes()
     wrong_key = tmp_path / "wrong-key"
     wrong_key.write_bytes(bytes(32))
+    if os.name == "posix":
+        wrong_key.chmod(0o600)
     result = subprocess.run(
         [
             sys.executable,
@@ -385,6 +387,8 @@ def test_cli_output_modes(tmp_path: Path) -> None:
 def test_cli_rejects_input_larger_than_output_limit(tmp_path: Path) -> None:
     key, source, opened = (tmp_path / name for name in ("key", "in", "out"))
     key.write_bytes(MASTER_KEY)
+    if os.name == "posix":
+        key.chmod(0o600)
     with source.open("wb") as stream:
         stream.truncate(2 * 1024 * 1024)
     result = subprocess.run(
@@ -405,4 +409,91 @@ def test_cli_rejects_input_larger_than_output_limit(tmp_path: Path) -> None:
     )
     assert result.returncode == 2
     assert "input exceeds max_output_size" in result.stderr
+    assert not opened.exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX mode bits")
+def test_cli_rejects_world_readable_key(tmp_path: Path) -> None:
+    key, source, sealed = (tmp_path / name for name in ("key", "in", "sealed"))
+    key.write_bytes(MASTER_KEY)
+    key.chmod(0o644)
+    source.write_bytes(b"private key test")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "kransx.cli",
+            "seal",
+            str(source),
+            str(sealed),
+            "--key-file",
+            str(key),
+        ],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 2
+    assert "key file must be private (0600)" in result.stderr
+    assert not sealed.exists()
+
+
+def test_cli_rejects_input_larger_than_max_input_size(tmp_path: Path) -> None:
+    key, source, sealed = (tmp_path / name for name in ("key", "in", "sealed"))
+    key.write_bytes(MASTER_KEY)
+    if os.name == "posix":
+        key.chmod(0o600)
+    source.write_bytes(b"x" * 65)
+
+    def run_seal(limit: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "kransx.cli",
+                "seal",
+                str(source),
+                str(sealed),
+                "--key-file",
+                str(key),
+                "--max-input-size",
+                limit,
+            ],
+            text=True,
+            capture_output=True,
+        )
+
+    result = run_seal("64")
+    assert result.returncode == 2
+    assert "input exceeds max_input_size" in result.stderr
+    assert not sealed.exists()
+    result = run_seal("0")
+    assert result.returncode == 2
+    assert "max_input_size must be positive" in result.stderr
+    assert not sealed.exists()
+
+
+def test_cli_rejects_overflowing_output_limit(tmp_path: Path) -> None:
+    key, source, opened = (tmp_path / name for name in ("key", "in", "out"))
+    key.write_bytes(MASTER_KEY)
+    if os.name == "posix":
+        key.chmod(0o600)
+    source.write_bytes(b"overflow")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "kransx.cli",
+            "open",
+            str(source),
+            str(opened),
+            "--key-file",
+            str(key),
+            "--max-output-size",
+            str(10**30),
+        ],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 2
+    assert "Traceback" not in result.stderr
     assert not opened.exists()
