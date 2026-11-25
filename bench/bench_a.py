@@ -26,7 +26,7 @@ def build_corpora() -> list[tuple[str, bytes]]:
     sentence = b"The quick brown fox jumps over the lazy dog. "
     sentence += b"Pack my box with five dozen liquor jugs. "
     text = sentence * 3000
-    paths = sorted(Path("kransx").glob("*.py"))
+    paths = sorted((Path(__file__).resolve().parent.parent / "kransx").glob("*.py"))
     code = b"".join([p.read_bytes() for p in paths])
     code = code * max(1, 200_000 // max(1, len(code)))
     runs = b"\x00" * 50_000 + b"\xff" * 50_000

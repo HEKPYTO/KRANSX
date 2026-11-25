@@ -136,7 +136,7 @@ def open_data(
     aad: bytes = b"",
     max_output_size: int = 64 * 1024 * 1024,
 ) -> bytes:
-    """Authenticate and open a envelope, enforcing an output limit."""
+    """Authenticate and open an envelope, enforcing an output limit."""
     blob = _require_bytes("blob", blob)
     key = _validate_key(key)
     aad = _require_bytes("aad", aad)
