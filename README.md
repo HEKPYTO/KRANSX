@@ -122,6 +122,12 @@ uv run pytest -q
 
 Layout: `kransx/` holds seal, open, dicts, cli. `tests/` holds conformance vectors, tamper checks, resource limits. `bench/` holds the claim gates and their result snapshots.
 
+## Release
+
+- CI: Python 3.10–3.14 on Linux, macOS, and Windows, plus a minimum-dependency compatibility job.
+- Reproducibility: `scripts/normalize_sdist.py` fixes sdist mtimes; two `SOURCE_DATE_EPOCH=1700000000` builds must give identical sdist and wheel hashes.
+- Attestation: release artifacts carry build-provenance attestations. PyPI publication remains owner-gated.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

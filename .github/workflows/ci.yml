@@ -7,12 +7,13 @@ permissions: { contents: read }
 
 jobs:
   test:
-    name: Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,3 +47,51 @@ jobs:
       - run: uv run kransx bench
       - run: uv run python bench/bench_claim_c1_dict.py
       - run: uv build
+
+  compat:
+    name: Minimum dependency versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.12"
+          version: "0.12.7"
+          enable-cache: true
+      - run: uv sync --locked --extra dev
+      - run: uv pip install 'cryptography==42.0.0' 'zstandard==0.22.0'
+      - run: uv run --no-sync pytest tests/test_compat.py -q
+
+  reproducible:
+    name: Reproducible build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SOURCE_DATE_EPOCH: "1700000000"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.14"
+          version: "0.12.7"
+          enable-cache: true
+      - name: Build twice and compare hashes
+        run: |
+          uv build --out-dir dist-a
+          uv build --out-dir dist-b
+          mkdir -p norm-a norm-b
+          uv run --locked python scripts/normalize_sdist.py dist-a/*.tar.gz norm-a/sdist.tar.gz
+          uv run --locked python scripts/normalize_sdist.py dist-b/*.tar.gz norm-b/sdist.tar.gz
+          wheel_a=$(sha256sum dist-a/*.whl | cut -d' ' -f1)
+          wheel_b=$(sha256sum dist-b/*.whl | cut -d' ' -f1)
+          sdist_a=$(sha256sum norm-a/sdist.tar.gz | cut -d' ' -f1)
+          sdist_b=$(sha256sum norm-b/sdist.tar.gz | cut -d' ' -f1)
+          echo "wheel $wheel_a $wheel_b"
+          echo "sdist $sdist_a $sdist_b"
+          test "$wheel_a" = "$wheel_b"
+          test "$sdist_a" = "$sdist_b"

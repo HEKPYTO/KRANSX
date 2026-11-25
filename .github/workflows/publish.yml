@@ -5,15 +5,23 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Upload to PyPI (false builds and attests only)"
+        type: boolean
+        default: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      SOURCE_DATE_EPOCH: "1700000000"
     environment: pypi
     permissions:
       id-token: write
       contents: read
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -27,4 +35,10 @@ jobs:
       - run: uv run kransx bench
       - run: uv run python bench/bench_claim_c1_dict.py
       - run: uv build
+      - name: Normalize sdist
+        run: uv run --locked python scripts/normalize_sdist.py dist/*.tar.gz dist/*.tar.gz
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: "dist/*"
       - run: uv publish --trusted-publishing always
+        if: github.event_name == 'push' || inputs.publish
