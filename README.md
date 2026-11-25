@@ -38,7 +38,7 @@ Each line below is decided by a checked-in command that exits non-zero when brok
 | Sealed output never exceeds the best single codec plus 29 bytes | 8 corpora, worst margin 0 | `kransx bench` |
 | Overhead is exactly 29 bytes, empty to 1 MB | 8 sizes, all raw suite | `kransx bench` |
 | Small JSON records seal 45% smaller with a trained dictionary | ratio 0.552 vs 0.85 gate, 5,000 records | `uv run python bench/bench_claim_c1_dict.py` |
-| Tamper at any envelope offset is rejected | tamper and failure matrix, exact exceptions | `uv run pytest -q` (71 tests) |
+| Tamper at any envelope offset is rejected | tamper and failure matrix, exact exceptions | `uv run pytest -q` (77 tests) |
 
 ## Python API
 
