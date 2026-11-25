@@ -11,7 +11,7 @@ from pathlib import Path
 import zstandard as zstd
 from cryptography.exceptions import InvalidTag
 
-from .core import open_data, seal
+from .core import _FIXED_OVERHEAD, open_data, seal
 from .dicts import load_dict, train_dict
 
 
@@ -50,11 +50,20 @@ def _seal(args: argparse.Namespace) -> None:
     print(f"sealed {source.stat().st_size} -> {len(result)} bytes")
 
 
+def _read_bounded(path: Path, limit: int) -> bytes:
+    with path.open("rb") as stream:
+        data = stream.read(max(0, limit))
+        if stream.read(1):
+            raise ValueError("input exceeds max_output_size")
+    return data
+
+
 def _open(args: argparse.Namespace) -> None:
     source, target = Path(args.infile), Path(args.outfile)
     dictionary = load_dict(args.dictionary) if args.dictionary else None
+    blob = _read_bounded(source, args.max_output_size + _FIXED_OVERHEAD + 1024 * 1024)
     result = open_data(
-        source.read_bytes(),
+        blob,
         _key(args.key_file),
         dict_obj=dictionary,
         aad=_hex(args.aad),

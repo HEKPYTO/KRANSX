@@ -380,3 +380,29 @@ def test_cli_output_modes(tmp_path: Path) -> None:
     assert run("open", str(sealed), str(opened), "--key-file", str(key)).returncode == 0
     assert sealed.stat().st_mode & 0o777 == 0o644
     assert opened.stat().st_mode & 0o777 == 0o600
+
+
+def test_cli_rejects_input_larger_than_output_limit(tmp_path: Path) -> None:
+    key, source, opened = (tmp_path / name for name in ("key", "in", "out"))
+    key.write_bytes(MASTER_KEY)
+    with source.open("wb") as stream:
+        stream.truncate(2 * 1024 * 1024)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "kransx.cli",
+            "open",
+            str(source),
+            str(opened),
+            "--key-file",
+            str(key),
+            "--max-output-size",
+            "1024",
+        ],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 2
+    assert "input exceeds max_output_size" in result.stderr
+    assert not opened.exists()

@@ -38,7 +38,7 @@ Each line below is decided by a checked-in command that exits non-zero when brok
 | Sealed output never exceeds the best single codec plus 29 bytes | 8 corpora, worst margin 0 | `kransx bench` |
 | Overhead is exactly 29 bytes, empty to 1 MB | 8 sizes, all raw suite | `kransx bench` |
 | Small JSON records seal 45% smaller with a trained dictionary | ratio 0.552 vs 0.85 gate, 5,000 records | `uv run python bench/bench_claim_c1_dict.py` |
-| Tamper at any envelope offset is rejected | tamper and failure matrix, exact exceptions | `uv run pytest -q` (78 tests) |
+| Tamper at any envelope offset is rejected | tamper and failure matrix, exact exceptions | `uv run pytest -q` (79 tests) |
 
 ## Python API
 
@@ -100,7 +100,7 @@ This library is the envelope only. Key generation, distribution, storage, rotati
 - **Keys** must be 32 uniformly random bytes. Passwords are not valid keys.
 - **Nonces** come from `os.urandom(12)` per seal. AES-GCM-SIV tolerates reuse better than most modes, but do not reuse them.
 - **Compression oracles.** Sealed size reveals which suite won. Never compress secrets mixed with attacker-controlled input without application-level separation. Pass `compress=False` when in doubt.
-- **Resource limits.** `max_output_size` bounds decompressed output. For untrusted input, also cap the encrypted bytes before calling `open_data`.
+- **Resource limits.** `max_output_size` bounds decompressed output. The `open` CLI caps encrypted input at that limit plus 29-byte envelope overhead and 1 MiB; callers of `open_data` must cap encrypted bytes themselves.
 - **Plaintext output.** `open` writes recovered plaintext with `0600` permissions on POSIX.
 
 This is an implementation with conformance vectors and tamper coverage, not an external audit.
